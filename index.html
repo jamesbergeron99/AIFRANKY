@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Frank | Studio Executive</title>
+    <title>Frank | Studio Executive (InWorld)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -21,7 +21,7 @@
             </div>
             <div>
                 <h1 class="text-2xl font-bold text-amber-500">Frank</h1>
-                <p class="text-[10px] text-zinc-500 uppercase tracking-widest">Studio Executive & Mentor</p>
+                <p class="text-[10px] text-zinc-500 uppercase tracking-widest">InWorld Powered • Studio Mentor</p>
             </div>
         </div>
         <button id="settingsBtn" class="text-zinc-500 hover:text-amber-500 transition-colors">
@@ -29,27 +29,39 @@
         </button>
     </header>
 
-    <div id="settingsPanel" class="hidden w-full max-w-4xl mb-6 p-6 bg-zinc-900 border border-zinc-800 rounded-3xl">
-        <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Gemini API Key</label>
-        <input type="password" id="apiKeyInput" class="w-full bg-zinc-950 border border-zinc-800 p-3 rounded-xl text-amber-500" value="AIzaSyBqfJ2ycARf8XKSjmIywZKHYf1KUcrxv8M">
+    <div id="settingsPanel" class="hidden w-full max-w-4xl mb-6 p-6 bg-zinc-900 border border-zinc-800 rounded-3xl space-y-4">
+        <div>
+            <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Gemini API Key (The Brain)</label>
+            <input type="password" id="geminiKey" class="w-full bg-zinc-950 border border-zinc-800 p-3 rounded-xl text-amber-500" placeholder="Paste Gemini Key Here">
+        </div>
+        <div>
+            <label class="block text-[10px] uppercase tracking-widest text-zinc-500 mb-2">InWorld API Key (The Voice)</label>
+            <input type="password" id="inworldKey" class="w-full bg-zinc-950 border border-zinc-800 p-3 rounded-xl text-blue-400" placeholder="Paste InWorld Key Here">
+        </div>
     </div>
 
-    <main class="w-full max-w-4xl bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6 flex flex-col h-[500px] mb-6">
+    <main class="w-full max-w-4xl bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6 flex flex-col h-[500px] mb-6 shadow-2xl">
         <div id="chatBox" class="flex-1 overflow-y-auto space-y-6 pr-2 scrollbar-hide">
             <div class="flex justify-start">
                 <div class="max-w-[85%] p-5 bg-zinc-800 border border-zinc-700 rounded-3xl rounded-tl-none italic text-zinc-300">
-                    My dear, I've poured a drink and I'm ready for some serious work. Hand me your pages. Let's find the brilliance.
+                    My dear, I've got the InWorld deck ready. Let's hear what your script has to say today.
                 </div>
             </div>
         </div>
-        <div id="loadingStatus" class="hidden text-amber-600 text-xs italic mt-4 animate-pulse">Frank is reading with his red pen...</div>
+        <div id="loadingStatus" class="hidden text-amber-600 text-xs italic mt-4 animate-pulse">Frank is analyzing...</div>
     </main>
 
-    <div class="w-full max-w-4xl flex gap-3">
+    <div class="w-full max-w-4xl flex gap-3 items-center">
         <input type="text" id="userInput" placeholder="What's the word in Hollywood?" class="flex-1 bg-zinc-900 border border-zinc-800 p-5 rounded-2xl focus:outline-none focus:ring-1 focus:ring-amber-500">
+        
+        <button id="micBtn" class="bg-zinc-800 hover:bg-zinc-700 p-5 rounded-2xl text-zinc-400 transition-all active:scale-95">
+            <i data-lucide="mic"></i>
+        </button>
+
         <button id="sendBtn" class="bg-amber-600 hover:bg-amber-700 p-5 rounded-2xl text-white transition-all active:scale-95">
             <i data-lucide="send"></i>
         </button>
+
         <label class="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl cursor-pointer hover:text-amber-500 transition-colors">
             <i data-lucide="upload"></i>
             <input type="file" id="fileInput" class="hidden" accept=".txt,.pdf">
@@ -59,12 +71,12 @@
     <audio id="frankVoice"></audio>
 
     <script>
-        // Initialize Icons
         lucide.createIcons();
 
         const chatBox = document.getElementById('chatBox');
         const userInput = document.getElementById('userInput');
         const sendBtn = document.getElementById('sendBtn');
+        const micBtn = document.getElementById('micBtn');
         const settingsBtn = document.getElementById('settingsBtn');
         const settingsPanel = document.getElementById('settingsPanel');
         const loadingStatus = document.getElementById('loadingStatus');
@@ -72,64 +84,75 @@
 
         settingsBtn.onclick = () => settingsPanel.classList.toggle('hidden');
 
+        // Speech-to-Text
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
+            const recognition = new SpeechRecognition();
+            micBtn.onclick = () => { recognition.start(); micBtn.classList.add('text-amber-500'); };
+            recognition.onresult = (e) => { userInput.value = e.results[0][0].transcript; handleSend(); };
+            recognition.onend = () => micBtn.classList.remove('text-amber-500');
+        }
+
         async function handleSend(customText = null) {
             const text = customText || userInput.value;
-            if (!text.trim()) return;
+            const gKey = document.getElementById('geminiKey').value;
+            const iKey = document.getElementById('inworldKey').value;
 
-            if (!customText) {
-                appendMessage('user', text);
-                userInput.value = '';
+            if (!text.trim() || !gKey) {
+                alert("Please ensure Gemini Key is entered in settings.");
+                return;
             }
 
+            if (!customText) { appendMessage('user', text); userInput.value = ''; }
             loadingStatus.classList.remove('hidden');
 
             try {
-                const apiKey = document.getElementById('apiKeyInput').value;
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`, {
+                // BRAIN: Gemini 1.5 Flash
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${gKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         contents: [{ parts: [{ text: text }] }],
-                        systemInstruction: { parts: [{ text: `You are Frank, a queer movie executive with 30 years experience. You are articulate, sophisticated, and witty. MISSION: MENTOR. If a script is provided, give a deep 5-part analysis (Impression, Structure, Character, Dialogue, Strategy). Use "My dear" and "Darling". Sound helpful and seasoned.` }] }
+                        systemInstruction: { parts: [{ text: "You are Frank, a queer movie executive. Be articulate, witty, and mentor-like. Give long 5-part script analysis. Use 'My dear' and 'Darling'." }] }
                     })
                 });
 
                 const data = await response.json();
                 const aiText = data.candidates[0].content.parts[0].text;
-                
                 appendMessage('assistant', aiText);
-                await playVoice(aiText, apiKey);
+
+                // VOICE: InWorld (Clive)
+                if (iKey) { await playInWorldVoice(aiText, iKey); }
             } catch (err) {
-                appendMessage('assistant', "Darling, the connection is fragile. Shall we try again?");
+                appendMessage('assistant', "Connection dropped, darling. Let's try again.");
             } finally {
                 loadingStatus.classList.add('hidden');
             }
         }
 
-        async function playVoice(text, key) {
+        async function playInWorldVoice(text, key) {
             try {
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${key}`, {
+                // This targets the InWorld Studio TTS endpoint for the Clive voice
+                const res = await fetch(`https://api.inworld.ai/v1/tts:synthesize`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'authorization': `basic ${key}` },
                     body: JSON.stringify({
-                        contents: [{ parts: [{ text: `Say this as Frank: ${text}` }] }],
-                        generationConfig: {
-                            responseModalities: ["AUDIO"],
-                            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Puck" } } }
-                        }
+                        text: text,
+                        voice: "clive" 
                     })
                 });
                 const result = await res.json();
-                const audioData = result.candidates[0].content.parts[0].inlineData.data;
-                frankVoice.src = `data:audio/wav;base64,${audioData}`;
-                frankVoice.play();
-            } catch (e) { console.error("Voice error", e); }
+                if (result.audio) {
+                    frankVoice.src = `data:audio/mp3;base64,${result.audio}`;
+                    frankVoice.play();
+                }
+            } catch (e) { console.error("InWorld Voice Error", e); }
         }
 
         function appendMessage(role, text) {
             const div = document.createElement('div');
             div.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
-            div.innerHTML = `<div class="max-w-[85%] p-5 rounded-3xl ${role === 'user' ? 'bg-amber-800 text-white rounded-tr-none' : 'bg-zinc-800 border border-zinc-700 text-zinc-200 rounded-tl-none leading-relaxed'}">${text}</div>`;
+            div.innerHTML = `<div class="max-w-[85%] p-5 rounded-3xl ${role === 'user' ? 'bg-amber-800 text-white' : 'bg-zinc-800 text-zinc-200'}">${text}</div>`;
             chatBox.appendChild(div);
             chatBox.scrollTop = chatBox.scrollHeight;
         }
